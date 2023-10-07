@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+    
+    <style>
+        #result, #download {
+            display: none;
+        }
+
+        .font-large {
+            font-size: 150px;
+        }
+    </style>
+</head>
+<body class="bg-dark">
+    <section>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="cl-sm-12 text-center p-5 text-white">
+                    <h3>Question Answer Generator using Mistral 7B</h3>
+                </div>
+            </div>
+
+        </div>
+    </section>
+    <section class="mb-4">
+        <div class="container">
+            <div class="row">
+                <div class="cl-sm-12">
+                    <div class="card p-5 shadow border-0 m-3">
+                        <div class="mb-3">
+                            <label for="exampleFormControlInput1" class="form-label">Upload your PDF file here</label>
+                            <div class="input-group mb-3">
+                                <input type="file" class="form-control" id="pdf-file">
+                                <label class="input-group-text" for="pdf-file">Max No. of Pages is 5</label>
+                            </div>
+                          </div>
+                          <div class="mb-3 text-end">
+                            <button type="button" id="upload-btn" class="btn btn-md btn-success">Generate QA Pair</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section id="result">
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-6">
+                    <div class="card shadow border-0 p-3 ms-3">
+                        <embed id="view-pdf" src="" width="100%" height="600px" />
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div class="card shadow border-0 p-5 me-3">
+                        <div id="loader" class="text-center">
+                            <i class="fa-solid fa-spinner fa-spin-pulse font-large"></i>
+                        </div>
+                        <div id="download" class="text-center">
+                            <a href="" id="download-btn" class="btn btn-md btn-warning" download><i class="fas fa-download font-large"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous"></script>
+    <script src="https://kit.fontawesome.com/1da99de032.js" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+
+    <script>
+        let result = document.getElementById('result');
+        let loader = document.getElementById('loader');
+        let download = document.getElementById('download');
+        let viewPdf = document.getElementById('view-pdf');
+        let downloadBtn = document.getElementById('download-btn');
+
+        $(document).ready(function () {
+            $("#upload-btn").click(async function (event) {
+                event.preventDefault();
+                const formData = new FormData();
+                const fileInput = document.getElementById('pdf-file') ;  
+                var file = fileInput.files[0];           
+                
+                formData.append('pdf_file', file);
+                formData.append('filename', file.name)
+                let response = await fetch('/upload', {
+                    method: "POST",
+                    body: formData                
+                });                
+                processUploadResponse(response);  
+            });
+        });
+
+        async function processUploadResponse(response){
+            switch (response.status) {
+                case 400:  
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops!!!',
+                        text: "Sorry, Couldn't be able to upload your pdf!!!",
+                        confirmButtonColor: "#15011d"
+                    }).then(function() {
+                        window.location.reload();
+                    });
+                  break;
+                case 200:                 
+                    var json = await response.json();
+                    if (json.msg == "error") {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Oops!',
+                            text: 'Maximum number of pages exceeded.',
+                            confirmButtonColor: "#545454"
+                        }).then(function() {
+                            window.location.reload();
+                        });
+                    }else {
+                        result.style.display = "block";
+                        loader.style.display = "block";
+                        download.style.display = "none";
+                        viewPdf.setAttribute('src', "../"+json.pdf_filename)
+                        viewPdf.setAttribute('preload', 'auto');
+                        const formData = new FormData();
+                        formData.append('pdf_filename', json.pdf_filename)
+                        fetch('/analyze', {
+                            method: "POST",
+                            body: formData                
+                        }).then(processAnalyzeResponse)  
+                    }
+                    
+                    break;
+                default:
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops!!!',
+                        text: "There is a "+response.status+" error. Please contact admin for support.",
+                        confirmButtonColor: "#15011d"
+                    }).then(function() {
+                        window.location.reload();
+                    });
+            }
+        }
+
+        async function processAnalyzeResponse(response){            
+            switch (response.status) {
+                case 400:  
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops!!!',
+                        text: "Sorry, Couldn't be able to analyze your pdf!!!",
+                        confirmButtonColor: "#15011d"
+                    }).then(function() {
+                        window.location.reload();
+                    });
+                  break;
+                case 200:                     
+                    loader.style.display = "none";
+                    download.style.display = "block";
+                    var json = await response.json();
+                    downloadBtn.setAttribute('href', "../"+json.output_file)
+                    break;
+                default:
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops!!!',
+                        text: "There is a "+response.status+" error. Please contact admin for support.",
+                        confirmButtonColor: "#15011d"
+                    }).then(function() {
+                        window.location.reload();
+                    });
+            }
+        }
+
+        
+    </script>
+</body>
+</html>
